@@ -41,6 +41,7 @@ command = [
     "-d", DB_NAME,
 
     "-F","c",
+    "--schema=public",
     "-f",str(backup_file)
 ]
 
