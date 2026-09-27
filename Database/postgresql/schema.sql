@@ -84,7 +84,7 @@ CREATE TABLE department (
 
 CREATE TABLE garment_group (
     garment_group_no    INT          PRIMARY KEY,
-    garment_group_name  VARCHAR(50)  NOT NULL UNIQUE
+    garment_group_name  VARCHAR(50)  NOT NULL
 );
 
 -- ----------------------------------------------------------------------------
