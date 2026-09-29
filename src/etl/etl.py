@@ -429,8 +429,7 @@ def run(out_dir: Path, window_days: int) -> dict[str, pd.DataFrame]:
     log.info("done: validation passed, %d tables written to %s", len(SCHEMA), out_dir)
     return tables
 
-
-def main() -> None:
+def processed_csv() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "processed")
     p.add_argument("--price-window-days", type=int, default=90)
@@ -438,7 +437,3 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
     run(args.out_dir, args.price_window_days)
-
-
-if __name__ == "__main__":
-    main()
