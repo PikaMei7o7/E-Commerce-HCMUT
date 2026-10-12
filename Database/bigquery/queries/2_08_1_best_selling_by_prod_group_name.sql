@@ -19,7 +19,7 @@ WITH ranked_products_by_group AS (
 SELECT 
     product_group_name,
     product_code,
-        prod_name,
+    prod_name,
     total_units_sold,
     total_revenue
 FROM ranked_products_by_group
