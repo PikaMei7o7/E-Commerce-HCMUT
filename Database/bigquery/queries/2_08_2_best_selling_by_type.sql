@@ -1,25 +1,25 @@
 WITH ranked_products_by_type AS (
     SELECT 
-        a.product_type_no,
+        a.prod_type_no,
         a.product_type_name,
         a.product_code,
         a.prod_name,
         SUM(f.quantity) AS total_units_sold,
         SUM(f.sales_revenue) AS total_revenue,
         ROW_NUMBER() OVER (
-            PARTITION BY a.product_type_no, a.product_type_name 
+            PARTITION BY a.product_type_no, a.prod_type_name 
             ORDER BY SUM(f.quantity) DESC
         ) AS rank
     FROM fact_sales f
     JOIN dim_article a ON f.article_id = a.article_id
     GROUP BY 
         a.product_type_no,
-        a.product_type_name,
+        a.prod_type_name,
         a.product_code,
         a.prod_name
 )
 SELECT 
-    product_type_name,
+    prod_type_name,
     product_code,
     prod_name,
     total_units_sold,
