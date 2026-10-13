@@ -4,7 +4,7 @@ WITH customer_product_ranking AS (
         a.article_id,
         a.product_code,
         a.prod_name,
-        a.product_type_name,
+        a.prod_type_name,
         SUM(f.quantity) AS total_quantity_purchased,
         SUM(f.sales_revenue) AS total_spending_on_product,
         ROW_NUMBER() OVER (
@@ -18,14 +18,14 @@ WITH customer_product_ranking AS (
         a.article_id,
         a.product_code,
         a.prod_name,
-        a.product_type_name
+        a.prod_type_name
 )
 SELECT 
     customer_id,
     article_id,
     product_code,
     prod_name,
-    product_type_name,
+    prod_type_name,
     total_quantity_purchased,
     total_spending_on_product
 FROM customer_product_ranking
