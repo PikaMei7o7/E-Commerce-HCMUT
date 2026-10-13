@@ -5,8 +5,8 @@ SELECT
     a.prod_name,
     SUM(f.quantity) AS total_quantity_sold,
     SUM(f.sales_revenue) AS total_revenue
--- FROM FACT_SALES f
-FROM contains f
+FROM FACT_SALES f
+-- FROM contains f
 JOIN dim_article a ON f.article_id = a.article_id
 GROUP BY 
     a.product_code, 
