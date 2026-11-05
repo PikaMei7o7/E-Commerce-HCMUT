@@ -3,3 +3,4 @@ backups/
 data/
 __pycache__/
 *.py[cod]
+.venv/

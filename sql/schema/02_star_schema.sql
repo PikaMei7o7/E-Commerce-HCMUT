@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS star_schema;
 
-CREATE TABLE star_schema.dim_customer (
+CREATE TABLE IF NOT EXISTS star_schema.dim_customer (
     customer_id             CHAR(64) PRIMARY KEY,
     age                     SMALLINT,
     fn                      BOOLEAN,
@@ -10,14 +10,14 @@ CREATE TABLE star_schema.dim_customer (
     postal_code             CHAR(64)
 );
 
-CREATE TABLE star_schema.dim_article (
+CREATE TABLE IF NOT EXISTS star_schema.dim_article (
     article_id                  CHAR(10) PRIMARY KEY,
     price_base                  DECIMAL(12,10),
 
     product_code                INT,
     prod_name                   VARCHAR(100),
     product_type_no             INT,
-    prod_type_name              VARCHAR(50),
+    product_type_name              VARCHAR(50),
     product_group_name          VARCHAR(50),
 
     graphical_appearance_no     INT,
@@ -39,7 +39,7 @@ CREATE TABLE star_schema.dim_article (
     section_no                  INT
 );
 
-CREATE TABLE star_schema.dim_date (
+CREATE TABLE IF NOT EXISTS star_schema.dim_date (
     date_key INTEGER PRIMARY KEY,
     full_date DATE NOT NULL UNIQUE,
     day SMALLINT NOT NULL,
@@ -49,12 +49,12 @@ CREATE TABLE star_schema.dim_date (
     day_of_week SMALLINT NOT NULL
 );
 
-CREATE TABLE star_schema.dim_sale_channel (
+CREATE TABLE IF NOT EXISTS star_schema.dim_sale_channel (
     sales_channel_id SMALLINT PRIMARY KEY,
     sales_channel_name VARCHAR(20) NOT NULL
 );
 
-CREATE TABLE star_schema.fact_sales (
+CREATE TABLE IF NOT EXISTS star_schema.fact_sales (
     transaction_id UUID NOT NULL,
     customer_id CHAR(64) NOT NULL,
     article_id CHAR(10) NOT NULL,

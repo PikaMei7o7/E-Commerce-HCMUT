@@ -1,11 +1,9 @@
--- Power BI Analytics Views
+-- Power BI analytics views
 -- Run this entire file in PostgreSQL / pgAdmin Query Tool.
 -- Creates/replaces views only; does not modify source tables or data.
 
 
---------------------------------------------------------------------------------
--- 01_vw_sales_detail.sql
---------------------------------------------------------------------------------
+-- 1. vw_sales_detail
 
 -- Detail-level view for flexible Power BI filtering.
 -- Grain: one row per transaction_id + article_id.
@@ -64,9 +62,7 @@ JOIN star_schema.dim_date AS d ON d.date_key = f.date_key
 JOIN star_schema.dim_article AS a ON a.article_id = f.article_id
 JOIN star_schema.dim_customer AS c ON c.customer_id = f.customer_id;
 
---------------------------------------------------------------------------------
--- 02_vw_sales_kpi.sql
---------------------------------------------------------------------------------
+-- 2. vw_sales_kpi
 
 -- Overall KPIs. total_customers_in_dimension is all customers in dim_customer;
 -- purchasing_customers is customers who appear in fact_sales.
@@ -82,9 +78,7 @@ SELECT
     SUM(f.sales_revenue) / NULLIF(COUNT(DISTINCT f.customer_id), 0) AS average_spending_per_purchasing_customer
 FROM star_schema.fact_sales AS f;
 
---------------------------------------------------------------------------------
--- 03_vw_monthly_sales.sql
---------------------------------------------------------------------------------
+-- 3. vw_monthly_sales
 
 CREATE OR REPLACE VIEW star_schema.vw_monthly_sales AS
 SELECT
@@ -100,9 +94,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_date AS d ON d.date_key = f.date_key
 GROUP BY d.year, d.month;
 
---------------------------------------------------------------------------------
--- 04_vw_daily_customer_trend.sql
---------------------------------------------------------------------------------
+-- 4. vw_daily_customer_trend
 
 CREATE OR REPLACE VIEW star_schema.vw_daily_customer_trend AS
 SELECT
@@ -116,9 +108,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_date AS d ON d.date_key = f.date_key
 GROUP BY d.full_date;
 
---------------------------------------------------------------------------------
--- 05_vw_product_performance.sql
---------------------------------------------------------------------------------
+-- 5. vw_product_performance
 
 CREATE OR REPLACE VIEW star_schema.vw_product_performance AS
 SELECT
@@ -138,9 +128,7 @@ GROUP BY
     a.product_code, a.prod_name, a.product_type_no,
     a.prod_type_name, a.product_group_name;
 
---------------------------------------------------------------------------------
--- 06_vw_product_group_performance.sql
---------------------------------------------------------------------------------
+-- 6. vw_product_group_performance
 
 CREATE OR REPLACE VIEW star_schema.vw_product_group_performance AS
 SELECT
@@ -154,9 +142,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_article AS a ON a.article_id = f.article_id
 GROUP BY a.product_group_name;
 
---------------------------------------------------------------------------------
--- 07_vw_product_type_performance.sql
---------------------------------------------------------------------------------
+-- 7. vw_product_type_performance
 
 CREATE OR REPLACE VIEW star_schema.vw_product_type_performance AS
 SELECT
@@ -171,9 +157,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_article AS a ON a.article_id = f.article_id
 GROUP BY a.product_type_no, a.prod_type_name;
 
---------------------------------------------------------------------------------
--- 08_vw_sales_by_channel.sql
---------------------------------------------------------------------------------
+-- 8. vw_sales_by_channel
 
 CREATE OR REPLACE VIEW star_schema.vw_sales_by_channel AS
 SELECT
@@ -191,9 +175,7 @@ SELECT
 FROM star_schema.fact_sales AS f
 GROUP BY f.sales_channel_id;
 
---------------------------------------------------------------------------------
--- 09_vw_customer_spending.sql
---------------------------------------------------------------------------------
+-- 9. vw_customer_spending
 
 CREATE OR REPLACE VIEW star_schema.vw_customer_spending AS
 SELECT
@@ -217,9 +199,7 @@ FROM star_schema.dim_customer AS c
 JOIN star_schema.fact_sales AS f ON f.customer_id = c.customer_id
 GROUP BY c.customer_id, c.age, c.club_member_status;
 
---------------------------------------------------------------------------------
--- 10_vw_customer_spending_by_segment.sql
---------------------------------------------------------------------------------
+-- 10. vw_customer_spending_by_segment
 
 -- One row per age group and membership status, suitable for segmented charts.
 CREATE OR REPLACE VIEW star_schema.vw_customer_spending_by_segment AS
@@ -242,9 +222,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_customer AS c ON c.customer_id = f.customer_id
 GROUP BY 1, 2;
 
---------------------------------------------------------------------------------
--- 11_vw_customer_product_group_preference.sql
---------------------------------------------------------------------------------
+-- 11. vw_customer_product_group_preference
 
 -- One row per customer and product group. Use this for flexible preference analysis.
 CREATE OR REPLACE VIEW star_schema.vw_customer_product_group_preference AS
@@ -258,9 +236,7 @@ FROM star_schema.fact_sales AS f
 JOIN star_schema.dim_article AS a ON a.article_id = f.article_id
 GROUP BY f.customer_id, a.product_group_name;
 
---------------------------------------------------------------------------------
--- 12_vw_customer_product_preference.sql
---------------------------------------------------------------------------------
+-- 12. vw_customer_product_preference
 
 -- One row per customer and product. Ranking/top preference can be done in Power BI.
 CREATE OR REPLACE VIEW star_schema.vw_customer_product_preference AS

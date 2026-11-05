@@ -1,7 +1,7 @@
 """Phase 3 ETL for the H&M Personalized Fashion Recommendations dataset.
 
 Reads data/raw/{articles,customers,transactions_train}.csv (never modified), profiles,
-cleans and standardizes them, maps them onto the tables of Database/postgresql/schema.sql
+cleans and standardizes them, maps them onto the tables of sql/schema/01_operational_schema.sql
 as described in Data_Dictionary.docx, validates the result against that schema, and
 writes data/processed/<table>.csv in the schema's column order.
 
@@ -12,7 +12,7 @@ console. Rerunning on the same input, on the same machine, gives the same output
 including the generated transaction_ids.
 
 Usage:
-    python src/etl/etl.py [--out-dir DIR] [--price-window-days 90]
+    python src/etl/transform_raw_data.py [--out-dir DIR] [--price-window-days 90]
 """
 
 import argparse
@@ -56,9 +56,7 @@ ARTICLE_INT_COLS = [
 FLAG = {"1.0": True, "1": True, "0.0": False, "0": False}
 
 
-# ----------------------------------------------------------------------------
 # 1. Read CSV
-# ----------------------------------------------------------------------------
 def read_raw() -> dict[str, pd.DataFrame]:
     missing = [f for f in RAW_FILES if not (RAW_DIR / f).exists()]
     if missing:
@@ -79,9 +77,7 @@ def read_raw() -> dict[str, pd.DataFrame]:
     }
 
 
-# ----------------------------------------------------------------------------
 # 2. Profiling
-# ----------------------------------------------------------------------------
 def profile(raw: dict[str, pd.DataFrame]) -> None:
     """Log what the raw data looks like: the facts the cleaning and the mapping rely on."""
     a, c, t = raw["articles"], raw["customers"], raw["transactions"]
@@ -116,9 +112,7 @@ def profile(raw: dict[str, pd.DataFrame]) -> None:
              rows_per_line.max(), top_article, str(top_day)[:10])
 
 
-# ----------------------------------------------------------------------------
 # 3. Cleaning
-# ----------------------------------------------------------------------------
 def _strip_text(df: pd.DataFrame) -> pd.DataFrame:
     """Trim whitespace in every text column; whitespace-only values become missing."""
     df = df.apply(lambda s: s.str.strip())
@@ -143,7 +137,7 @@ def clean(raw: dict[str, pd.DataFrame]):
     c = _strip_text(raw["customers"])
     c = c.dropna(subset=["customer_id"]).drop_duplicates("customer_id")
     age = pd.to_numeric(c["age"], errors="coerce")
-    c = c.assign(age=age.where((age % 1 == 0) & age.between(0, 120)))  # anything else -> NULL
+    c = c.assign(age=age.where((age % 1 == 0) & age.between(0, 120)))  # anything else -> null
 
     t = raw["transactions"]
     t = t.assign(customer_id=_strip_category(t["customer_id"]), article_id=_strip_category(t["article_id"]),
@@ -160,9 +154,7 @@ def clean(raw: dict[str, pd.DataFrame]):
     return a, c, t
 
 
-# ----------------------------------------------------------------------------
 # 4. Standardization
-# ----------------------------------------------------------------------------
 def _flag(s: pd.Series) -> pd.Series:
     """1.0 -> true, empty -> false; any other value is unexpected and becomes NULL."""
     return s.map(FLAG).mask(s.isna(), False).astype("boolean")
@@ -184,9 +176,7 @@ def standardize(a: pd.DataFrame, c: pd.DataFrame):
     return a, customer
 
 
-# ----------------------------------------------------------------------------
 # 5. Transformation (mapping of Data_Dictionary.docx)
-# ----------------------------------------------------------------------------
 def _lookup(a: pd.DataFrame, key: str, cols: list[str]) -> pd.DataFrame:
     """Distinct (key, cols...) rows; one row per key."""
     t = a[[key, *cols]].drop_duplicates()
@@ -207,7 +197,7 @@ def _repeatable_uuid4(n: int) -> np.ndarray:
     """UUID v4-format ids from a fixed seed: the same ids on every run."""
     b = np.random.default_rng(UUID_SEED).integers(0, 256, size=(n, 16), dtype=np.uint8)
     b[:, 6] = (b[:, 6] & 0x0F) | 0x40  # version 4
-    b[:, 8] = (b[:, 8] & 0x3F) | 0x80  # RFC 4122 variant
+    b[:, 8] = (b[:, 8] & 0x3F) | 0x80  # rfc 4122 variant
     return np.array([str(uuid.UUID(bytes=row.tobytes())) for row in b], dtype=object)
 
 
@@ -287,10 +277,8 @@ def transform(a: pd.DataFrame, customer: pd.DataFrame, t: pd.DataFrame, window_d
     return tables
 
 
-# ----------------------------------------------------------------------------
-# 6. Validation (contract with Database/postgresql/schema.sql)
-# ----------------------------------------------------------------------------
-# Keep in sync with schema.sql. cols: column order; pk: primary key; nn: NOT NULL;
+# 6. Validation (contract with sql/schema/01_operational_schema.sql)
+# Keep in sync with sql/schema/01_operational_schema.sql. cols: column order; pk: primary key; nn: NOT NULL;
 # uq: UNIQUE; fk: {column: (table, column)}; len: max VARCHAR/CHAR length.
 def _simple_lookup(key: str, name: str) -> dict:
     return dict(cols=[key, name], pk=[key], nn=[name], uq=[name], len={name: 50})
@@ -364,7 +352,7 @@ CHECKS = [
 
 
 def validate(tables: dict[str, pd.DataFrame], n_source_rows: int) -> list[str]:
-    """Return the checks that fail; empty when the tables match schema.sql."""
+    """Return the checks that fail; empty when the tables match the operational schema."""
     failed: list[str] = []
 
     def check(ok: bool, what: str) -> None:
@@ -394,9 +382,7 @@ def validate(tables: dict[str, pd.DataFrame], n_source_rows: int) -> list[str]:
     return failed
 
 
-# ----------------------------------------------------------------------------
 # Output
-# ----------------------------------------------------------------------------
 def clear_output(out_dir: Path) -> None:
     """Delete an earlier run's tables before starting, so a failed or crashed run never
     leaves old and new tables side by side."""
@@ -410,7 +396,7 @@ def write_tables(tables: dict[str, pd.DataFrame], out_dir: Path) -> None:
         tables[name].to_csv(out_dir / f"{name}.csv", index=False, chunksize=1_000_000, float_format="%.10f")
 
 
-def run(out_dir: Path, window_days: int) -> dict[str, pd.DataFrame]:
+def run(out_dir: Path, window_days: int, max_contains_rows: int | None = None) -> dict[str, pd.DataFrame]:
     if out_dir.resolve() == RAW_DIR.resolve():
         raise ValueError("--out-dir must not be data/raw: raw files are read-only")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -425,15 +411,20 @@ def run(out_dir: Path, window_days: int) -> dict[str, pd.DataFrame]:
     failed = validate(tables, len(t))
     if failed:
         raise SystemExit("validation failed, no tables written:\n  " + "\n  ".join(failed))
+    if max_contains_rows is not None:
+        log.info("mini mode: limiting contains table from %d to %d rows", len(tables["contains"]), max_contains_rows)
+        tables["contains"] = tables["contains"].iloc[:max_contains_rows]
     write_tables(tables, out_dir)
     log.info("done: validation passed, %d tables written to %s", len(SCHEMA), out_dir)
     return tables
 
-def processed_csv() -> None:
+
+def processed_csv(max_contains_rows: int | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "processed")
     p.add_argument("--price-window-days", type=int, default=90)
-    args = p.parse_args()
+    p.add_argument("--max-contains-rows", type=int, default=max_contains_rows)
+    args, _ = p.parse_known_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
-    run(args.out_dir, args.price_window_days)
+    run(args.out_dir, args.price_window_days, max_contains_rows=args.max_contains_rows)

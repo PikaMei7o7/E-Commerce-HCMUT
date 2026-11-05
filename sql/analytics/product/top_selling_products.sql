@@ -1,5 +1,5 @@
 -- EXPLAIN ANALYZE 
---STAR
+-- Star schema
 SELECT 
     a.product_code,
     a.prod_name,
@@ -16,8 +16,6 @@ ORDER BY
 LIMIT 10;
 
 
-
-
 -- SELECT 
 --     p.prod_name,
 --     p.product_code,
@@ -31,7 +29,7 @@ LIMIT 10;
 -- LIMIT 10;
 
 
------ Group before join ------
+-- Group before join
 -- SELECT 
 --     p.prod_name,
 --     top_products.total_quantity_sold,

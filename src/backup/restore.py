@@ -5,7 +5,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv()
+ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT / ".env")
 
 def recovery():
     DB_HOST = os.getenv("DB_HOST")
@@ -16,10 +17,8 @@ def recovery():
     # Database used for recovery
     RECOVERY_DB = "hm-ecommerce-recovery"
 
-    # Change File location
-    BACKUP_FILE = Path(
-        "backups\hm-ecommerce_20260927_230941.dump"
-    )
+    # Change file location
+    BACKUP_FILE = ROOT / "backups" / "hm-ecommerce_20260927_230941.dump"
 
 
     if not BACKUP_FILE.exists():
@@ -32,9 +31,7 @@ def recovery():
     env["PGPASSWORD"] = DB_PASSWORD
 
 
-    # =====================================
     # Restore
-    # =====================================
 
     command = [
         "pg_restore",
