@@ -1,0 +1,21 @@
+--EXPLAIN ANALYZE
+-- SELECT 
+--     d.full_date AS t_dat,
+--     COUNT(DISTINCT f.customer_id) AS active_customers,
+--     SUM(f.quantity) AS total_units_sold,
+--     ROUND(SUM(f.quantity)::NUMERIC / NULLIF(COUNT(DISTINCT f.customer_id), 0), 2) AS avg_units_per_customer
+-- FROM fact_sales f
+-- JOIN dim_date d ON f.date_key = d.date_key
+-- GROUP BY 
+--     d.full_date
+-- ORDER BY 
+--     d.full_date ASC;
+
+SELECT 
+    full_date AS t_dat,
+    COUNT(DISTINCT customer_id) AS active_customers,
+    SUM(quantity) AS total_units_sold,
+    ROUND(SUM(quantity)::NUMERIC / NULLIF(COUNT(DISTINCT customer_id), 0), 2) AS avg_units_per_customer
+FROM star_schema.vw_sales_detail
+GROUP BY full_date
+ORDER BY full_date ASC;
