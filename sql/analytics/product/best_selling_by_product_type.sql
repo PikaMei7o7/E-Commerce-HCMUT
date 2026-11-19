@@ -1,7 +1,7 @@
 WITH ranked_products_by_type AS (
     SELECT 
-        a.prod_type_no,
-        a.product_type_name,
+        a.product_type_no,
+        a.prod_type_name,
         a.product_code,
         a.prod_name,
         SUM(f.quantity) AS total_units_sold,

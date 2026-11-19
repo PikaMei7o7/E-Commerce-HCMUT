@@ -17,8 +17,8 @@ def recovery():
     # Database used for recovery
     RECOVERY_DB = "hm-ecommerce-recovery"
 
-    # Change file location
-    BACKUP_FILE = ROOT / "backups" / "hm-ecommerce_20260927_230941.dump"
+    # Change this link
+    BACKUP_FILE = ROOT / "backups" / "hm-ecommerce_20260927_230941.dump" 
 
 
     if not BACKUP_FILE.exists():

@@ -1,3 +1,10 @@
+-- ============================================================================
+-- RUN ORDER: run this file AFTER sql/optimization/views.sql.
+-- views.sql uses DROP MATERIALIZED VIEW ... CASCADE, which also drops the
+-- vw_* views and every GRANT on them. GRANT ... ON ALL TABLES only applies to
+-- objects that already exist, so this file must be re-run after views.sql.
+-- ============================================================================
+
 -- Create roles (if they do not already exist)
 DO $$
 BEGIN

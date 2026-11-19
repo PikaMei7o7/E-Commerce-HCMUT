@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -11,16 +12,12 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
 
-BACKUP_DIR = ROOT / "backups"
+# Override with the BACKUP_DIR environment variable (default: <repo>/backups).
+BACKUP_DIR = Path(os.getenv("BACKUP_DIR") or ROOT / "backups")
 SCHEMAS = ("public", "star_schema")
 
 
 def backup_database(schemas=SCHEMAS):
-    """Dump the given schemas with pg_dump and write a row-count report next to the dump.
-
-    Both the row counts and pg_dump read the same exported snapshot, so the numbers in
-    the report match exactly what is inside the .dump file. Returns (dump_file, report_file).
-    """
     params = {
         "DB_HOST": os.getenv("DB_HOST"),
         "DB_PORT": os.getenv("DB_PORT", "5432"),
@@ -32,7 +29,7 @@ def backup_database(schemas=SCHEMAS):
     if missing:
         raise ValueError("Missing environment variable(s): " + ", ".join(missing))
 
-    BACKUP_DIR.mkdir(exist_ok=True)
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     started = datetime.now()
     stamp = started.strftime("%Y%m%d_%H%M%S")
     dump_file = BACKUP_DIR / f"{params['DB_NAME']}_{stamp}.dump"
@@ -124,6 +121,42 @@ def backup_database(schemas=SCHEMAS):
     print(f"Dump   : {dump_file}")
     print(f"Report : {report_file}")
     return dump_file, report_file
+
+
+def cleanup_old_backups(keep: int = 7, db_name: str | None = None, backup_dir: Path | None = None):
+    """Keep only the `keep` newest backups of one database, delete the older ones.
+
+    A backup is the pair <db_name>_<YYYYmmdd_HHMMSS>.dump + <db_name>_<stamp>_row_counts.txt
+    written by backup_database(). Only files in backup_dir whose name matches exactly this
+    pattern for db_name are touched. Returns the list of deleted files.
+    """
+    if keep < 1:
+        raise ValueError("keep must be at least 1")
+    db_name = db_name or os.getenv("DB_NAME")
+    if not db_name:
+        raise ValueError("Missing environment variable: DB_NAME")
+    backup_dir = Path(backup_dir or BACKUP_DIR)
+    if not backup_dir.is_dir():
+        return []
+
+    pattern = re.compile(rf"^{re.escape(db_name)}_(\d{{8}}_\d{{6}})(\.dump|_row_counts\.txt)$")
+    files_by_stamp: dict[str, list[Path]] = {}
+    for path in backup_dir.iterdir():
+        match = pattern.match(path.name)
+        if match and path.is_file():
+            files_by_stamp.setdefault(match.group(1), []).append(path)
+
+    # YYYYmmdd_HHMMSS sorts chronologically as text: newest first
+    old_stamps = sorted(files_by_stamp, reverse=True)[keep:]
+    deleted = []
+    for stamp in old_stamps:
+        for path in files_by_stamp[stamp]:
+            path.unlink()
+            deleted.append(path)
+            print(f"Deleted old backup file: {path.name}")
+    print(f"Backup cleanup: kept {min(keep, len(files_by_stamp))} backup(s) of {db_name}, "
+          f"deleted {len(deleted)} file(s).")
+    return deleted
 
 
 if __name__ == "__main__":

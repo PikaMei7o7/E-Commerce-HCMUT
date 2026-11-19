@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS star_schema.dim_article (
     product_code                INT,
     prod_name                   VARCHAR(100),
     product_type_no             INT,
-    product_type_name              VARCHAR(50),
+    prod_type_name              VARCHAR(50),
     product_group_name          VARCHAR(50),
 
     graphical_appearance_no     INT,

@@ -4,3 +4,10 @@ data/
 __pycache__/
 *.py[cod]
 .venv/
+# Airflow runtime folders (keep only the empty .gitkeep)
+airflow/logs/*
+airflow/plugins/*
+airflow/config/*
+!airflow/logs/.gitkeep
+!airflow/plugins/.gitkeep
+!airflow/config/.gitkeep

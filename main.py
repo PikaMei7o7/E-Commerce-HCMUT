@@ -16,30 +16,18 @@ from pathlib import Path
 
 import psycopg2
 from dotenv import load_dotenv
-##REFRESH IMPORT
-# from web.mv_scheduler import start_mv_scheduler
 
-# Pipeline configuration (1 = enabled, 0 = disabled)
-# 1. Initialize database schemas, views, and access permissions
-OPERATION_SCHEMA_CREATE = 0   # execute sql/schema/01_operational_schema.sql
-STAR_SCHEMA_CREATE = 0        # execute sql/schema/02_star_schema.sql
-VIEW_CREATE = 0               # execute sql/schema/03_views.sql
-DATABASE_ACCESS_CREATE = 0    # execute sql/security/roles_and_grants.sql
-
-# 2. Run ETL (process CSV files and load data into the operational schema)
-PROCESS_RAW_CSV = 0  # 1: force transform_raw_data.py to regenerate processed csv files
-                     # 0: reuse existing processed csv files
-ETL = 0              # 1: run full etl (load all records into all tables)
-ETL_MINI = 0         # 1: run mini etl (load ~1 million rows into contains;
-                     #    load all records into the other tables)
-
-# 3. Run the star schema loader (public -> star_schema)
-STAR_SCHEMA_LOADER = 0      # 1: load the full star schema
-STAR_SCHEMA_LOADER_MINI = 0 # 1: load the mini star schema
-                            #    (limit fact_sales to ~1 million rows;
-                            #    load all records into dimension tables)
-
-# Row limit for contains and fact_sales when running in mini mode
+OPERATION_SCHEMA_CREATE = 0
+STAR_SCHEMA_CREATE = 0
+VIEW_CREATE = 0
+INDEX_CREATE = 0
+MV_CREATE = 0   
+DATABASE_ACCESS_CREATE = 0    
+PROCESS_RAW_CSV = 0 
+ETL = 0
+ETL_MINI = 0
+STAR_SCHEMA_LOADER = 0      
+STAR_SCHEMA_LOADER_MINI = 0 
 MINI_ROW_LIMIT = 1_000_000
 
 # 4. Start the web dashboard
@@ -66,6 +54,8 @@ SQL_FILES = {
     "OPERATION_SCHEMA": ROOT / "sql" / "schema" / "01_operational_schema.sql",
     "STAR_SCHEMA": ROOT / "sql" / "schema" / "02_star_schema.sql",
     "VIEW": ROOT / "sql" / "schema" / "03_views.sql",
+    "INDEX": ROOT / "sql" / "optimization" / "indexes.sql",
+    "MATERIALIZED_VIEW": ROOT / "sql" / "optimization" / "views.sql",
     "DATABASE_ACCESS": ROOT / "sql" / "security" / "roles_and_grants.sql",
 }
 
@@ -140,6 +130,16 @@ def run_sql_setup() -> None:
             VIEW_CREATE,
             SQL_FILES["VIEW"],
             "03_views.sql",
+        ),
+        (
+            INDEX_CREATE,
+            SQL_FILES["INDEX"],
+            "indexes.sql",
+        ),
+        (
+            MV_CREATE,
+            SQL_FILES["MATERIALIZED_VIEW"],
+            "views.sql",
         ),
         (
             DATABASE_ACCESS_CREATE,
@@ -277,25 +277,13 @@ def run_web_server() -> None:
 
     else:
         log.info("[SKIP] Skipping Web Dashboard startup (RUN_WEB = %s)", RUN_WEB)
-#5. Run REFRESH VIEW
-# def run_refresh():
-#     """
-#     Start the Materialized View refresh scheduler.
-#     """
 
-#     log.info("[MV REFRESH] Starting scheduler...")
 
-#     scheduler = start_mv_scheduler()
-
-#     log.info("[MV REFRESH] Scheduler is running.")
-
-#     return scheduler
 def main() -> None:
     log.info("Starting main setup")
 
     run_sql_setup()
     run_etl_pipeline()
-    # run_refresh()
     run_web_server()
 
     log.info("Execution completed")
