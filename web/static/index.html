@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/static/style.css">
+<script>
+  // Áp dụng theme đã lưu trước khi render để tránh nháy màu
+  try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 </head>
 <body>
 <div class="app">
@@ -32,7 +36,14 @@
     <div class="nav-label">Dashboards</div>
     <nav id="dash-nav" class="nav"></nav>
 
-    <div id="who" class="who" hidden></div>
+    <div class="side-foot">
+      <button id="theme-toggle" class="nav-item theme-toggle" type="button" aria-label="Toggle dark mode">
+        <span class="ic ic-moon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>
+        <span class="ic ic-sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+        <span class="nav-txt">Dark mode</span>
+      </button>
+      <div id="who" class="who" hidden></div>
+    </div>
   </aside>
 
   <main>
@@ -44,5 +55,26 @@
 <div id="tip" class="tip" hidden></div>
 <script src="/static/charts.js"></script>
 <script src="/static/app.js"></script>
+<script>
+  (function () {
+    const root = document.documentElement, btn = document.getElementById('theme-toggle');
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : mq.matches;
+    const sync = () => {
+      const d = isDark();
+      btn.querySelector('.nav-txt').textContent = d ? 'Light mode' : 'Dark mode';
+      btn.setAttribute('aria-pressed', d);
+      root.classList.toggle('is-dark', d);
+    };
+    btn.addEventListener('click', () => {
+      const next = isDark() ? 'light' : 'dark';
+      root.dataset.theme = next;
+      try { localStorage.setItem('theme', next); } catch (e) {}
+      sync();
+    });
+    mq.addEventListener('change', sync);
+    sync();
+  })();
+</script>
 </body>
 </html>

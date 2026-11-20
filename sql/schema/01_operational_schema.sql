@@ -1,10 +1,6 @@
--- LOGIN_ACCOUNT: đánh dấu PHASE 2 theo đúng ghi chú trong Data Dictionary —
--- vẫn định nghĩa sẵn ở đây để không phải thiết kế lại sau, nhưng có thể bỏ
--- qua (comment out) nếu phase 1 chưa cần đến đăng nhập.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 1. Customer — customers.csv
 CREATE TABLE IF NOT EXISTS customer (
     customer_id             CHAR(64)     PRIMARY KEY,
     age                     SMALLINT     NULL CHECK (age BETWEEN 0 AND 120),
@@ -15,20 +11,16 @@ CREATE TABLE IF NOT EXISTS customer (
     postal_code             CHAR(64)     NULL
 );
 
--- 2. Login account — synthetic, phase 2 (theo Data Dictionary: "đừng quan
---    tâm cái này phase 2 mới dùng"). Giữ định nghĩa sẵn, tạo bảng khi cần.
 CREATE TABLE IF NOT EXISTS login_account (
     customer_id    CHAR(64)      PRIMARY KEY REFERENCES customer(customer_id),
     username       VARCHAR(50)   NOT NULL UNIQUE,
     password_hash  VARCHAR(255)  NOT NULL
 );
 
--- 3. Product group — articles.csv.product_group_name (distinct)
 CREATE TABLE IF NOT EXISTS product_group (
     product_group_name  VARCHAR(50)  PRIMARY KEY
 );
 
--- 4. Product type — articles.csv
 CREATE TABLE IF NOT EXISTS product_type (
     product_type_no    INT          PRIMARY KEY,
     product_type_name  VARCHAR(50)  NOT NULL,
@@ -36,14 +28,12 @@ CREATE TABLE IF NOT EXISTS product_type (
         REFERENCES product_group(product_group_name)
 );
 
--- 5. Product — articles.csv (product_code distinct)
 CREATE TABLE IF NOT EXISTS product (
     product_code      INT           PRIMARY KEY,
     prod_name         VARCHAR(100)  NOT NULL,
     product_type_no   INT           NOT NULL REFERENCES product_type(product_type_no)
 );
 
--- 6–11. Các lookup mô tả article — độc lập, không roll-up vào đâu
 CREATE TABLE IF NOT EXISTS graphical_appearance (
     graphical_appearance_no    INT          PRIMARY KEY,
     graphical_appearance_name  VARCHAR(50)  NOT NULL UNIQUE
@@ -75,31 +65,27 @@ CREATE TABLE IF NOT EXISTS garment_group (
     garment_group_name  VARCHAR(50)  NOT NULL
 );
 
--- 12. Index group — articles.csv
 CREATE TABLE IF NOT EXISTS index_group (
     index_group_no    INT          PRIMARY KEY,
     index_group_name  VARCHAR(50)  NOT NULL UNIQUE
 );
 
--- 13. Article index — articles.csv (index_code/index_name/index_group_no)
 CREATE TABLE IF NOT EXISTS article_index (
     index_code       CHAR(1)      PRIMARY KEY,
     index_name       VARCHAR(50)  NOT NULL,
     index_group_no   INT          NOT NULL REFERENCES index_group(index_group_no)
 );
 
--- 14. Section — articles.csv (section_no/section_name)
 CREATE TABLE IF NOT EXISTS section (
     section_no    INT          PRIMARY KEY,
     section_name  VARCHAR(50)  NOT NULL
 );
 
--- 15. Article — articles.csv + 2 cột derived (image_path, price_base)
 CREATE TABLE IF NOT EXISTS article (
     article_id                    CHAR(10)        PRIMARY KEY,
     detail_desc                   TEXT            NULL,
-    image_path                    VARCHAR(100)    NULL,   -- derived từ article_id
-    price_base                    DECIMAL(12,10)  NULL,   -- derived: median 90 ngày gần nhất (ghi chú b)
+    image_path                    VARCHAR(100)    NULL,
+    price_base                    DECIMAL(12,10)  NULL,
     product_code                  INT             NOT NULL REFERENCES product(product_code),
     graphical_appearance_no       INT             NOT NULL REFERENCES graphical_appearance(graphical_appearance_no),
     colour_group_code             INT             NOT NULL REFERENCES colour_group(colour_group_code),
@@ -111,8 +97,6 @@ CREATE TABLE IF NOT EXISTS article (
     section_no                    INT             NOT NULL REFERENCES section(section_no)
 );
 
--- 16. Transaction — header giao dịch, transaction_id synthetic
---    (1=cửa hàng, 2=online) 
 CREATE TABLE IF NOT EXISTS transaction (
     transaction_id     UUID   PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id        CHAR(64)  NOT NULL REFERENCES customer(customer_id),
@@ -120,9 +104,6 @@ CREATE TABLE IF NOT EXISTS transaction (
     t_dat              DATE      NOT NULL
 );
 
--- 17. Contains — chi tiết từng article trong 1 giao dịch (bảng nối M:N).
---    quantity derived: đếm số dòng trùng lặp trong transactions_train.csv
---    khi gộp nhóm lúc ETL (xem Data Dictionary mục 4).
 CREATE TABLE IF NOT EXISTS contains (
     transaction_id  UUID            NOT NULL REFERENCES transaction(transaction_id),
     article_id      CHAR(10)        NOT NULL REFERENCES article(article_id),

@@ -1,20 +1,3 @@
-"""Phase 3 ETL for the H&M Personalized Fashion Recommendations dataset.
-
-Reads data/raw/{articles,customers,transactions_train}.csv (never modified), profiles,
-cleans and standardizes them, maps them onto the tables of sql/schema/01_operational_schema.sql
-as described in Data_Dictionary.docx, validates the result against that schema, and
-writes data/processed/<table>.csv in the schema's column order.
-
-This is a one-time migration of the Kaggle history (Data Dictionary, Ghi chú A). A run
-first deletes the tables of any earlier run and writes new ones only if every validation
-check passes; it ends by logging "done". Profiling results and failed checks go to the
-console. Rerunning on the same input, on the same machine, gives the same output,
-including the generated transaction_ids.
-
-Usage:
-    python src/etl/transform_raw_data.py [--out-dir DIR] [--price-window-days 90]
-"""
-
 import argparse
 import logging
 import uuid

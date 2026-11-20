@@ -1,6 +1,3 @@
-"""Load existing public operational tables into existing star_schema tables.
-Does not run ETL, read CSVs, create/modify schema DDL, or truncate data.
-"""
 from datetime import timedelta
 import logging
 import os

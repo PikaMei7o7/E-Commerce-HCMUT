@@ -1,4 +1,3 @@
-/* Điều khiển giao diện: Kết nối -> Quyền truy cập -> Dashboard. */
 const $ = id => document.getElementById(id);
 const STATUS = {
   ok: ['Full read access', 'ok'], partial: ['Partial access', 'partial'], denied: ['No permission', 'denied'],
@@ -8,7 +7,6 @@ const STATUS = {
 const badge = k => h('span', { class: 'badge b-' + STATUS[k][1], text: STATUS[k][0] });
 const state = { access: null, catalog: null, dash: null, ctrl: {}, host: '', dbname: '' };
 
-/* Biểu tượng SVG nội tuyến (chuỗi tĩnh). */
 const ICONS = {
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',

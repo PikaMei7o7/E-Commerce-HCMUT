@@ -1,11 +1,3 @@
-"""Refresh the 12 star_schema materialized views (mv_*) used by the analytics portal.
-
-All refreshes run in ONE transaction: either every MV gets the new data or none does,
-so the dashboards never mix old and new numbers.
-
-Scheduled by Airflow (airflow/dags/hm_refresh_mv.py). Run manually from the repo root:
-    python -m src.warehouse.refresh_materialized_views
-"""
 import logging
 import os
 import time

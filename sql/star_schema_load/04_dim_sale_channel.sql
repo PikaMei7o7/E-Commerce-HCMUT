@@ -1,4 +1,3 @@
--- Keep the existing star_schema.sql unchanged: dim_sale_channel currently has only sales_channel_id.
 INSERT INTO star_schema.dim_sale_channel (
     sales_channel_id,
     sales_channel_name

@@ -1,4 +1,3 @@
-/* Biểu đồ SVG thuần (không phụ thuộc thư viện ngoài). */
 const SVGNS = 'http://www.w3.org/2000/svg';
 const PALETTE = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
 

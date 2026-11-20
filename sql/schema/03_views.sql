@@ -1,10 +1,5 @@
--- Power BI analytics views
--- Run this entire file in PostgreSQL / pgAdmin Query Tool.
--- Creates/replaces views only; does not modify source tables or data.
-
 
 -- 1. vw_sales_detail
-
 -- Detail-level view for flexible Power BI filtering.
 -- Grain: one row per transaction_id + article_id.
 CREATE OR REPLACE VIEW star_schema.vw_sales_detail AS

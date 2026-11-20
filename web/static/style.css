@@ -68,7 +68,11 @@ code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:12px}
 .nav-empty{padding:6px 10px;color:var(--side-muted);font-size:12.5px}
 .sd{width:7px;height:7px;border-radius:50%;flex:none}
 .sd.full{background:#4ade80}.sd.partial{background:#facc15}.sd.locked{background:#f87171}
-.who{margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 8px 4px;border-top:1px solid var(--side-line)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding-top:12px}
+.theme-toggle .ic-sun{display:none}
+.is-dark .theme-toggle .ic-sun{display:inline-grid}
+.is-dark .theme-toggle .ic-moon{display:none}
+.who{display:flex;align-items:center;gap:10px;padding:12px 8px 4px;border-top:1px solid var(--side-line)}
 .who[hidden]{display:none}
 .avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:700;font-size:13px;flex:none}
 .who-txt{flex:1;min-width:0;line-height:1.3}
@@ -86,7 +90,9 @@ main{min-width:0;width:100%;max-width:1440px;margin:0 auto;padding:32px 36px 56p
   .brand{padding:0 6px 0 0}.brand > div,.nav-label,.nav-empty{display:none}
   .nav{flex-direction:row}
   .nav-item{width:auto;white-space:nowrap}
-  .who{margin:0 0 0 auto;padding:0 0 0 8px;border:0}.who-txt{display:none}
+  .side-foot{margin:0 0 0 auto;padding:0;flex-direction:row;align-items:center}
+  .theme-toggle .nav-txt{display:none}
+  .who{margin:0;padding:0 0 0 8px;border:0}.who-txt{display:none}
   main{padding:22px 16px 40px}
 }
 

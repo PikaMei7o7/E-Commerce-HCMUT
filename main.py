@@ -29,11 +29,7 @@ ETL_MINI = 0
 STAR_SCHEMA_LOADER = 0      
 STAR_SCHEMA_LOADER_MINI = 0 
 MINI_ROW_LIMIT = 1_000_000
-
-# 4. Start the web dashboard
-RUN_WEB = 1  # 1: start the web dashboard (web/app.py)
-
-
+RUN_WEB = 1  
 # Path and environment configuration (.env)
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
@@ -55,7 +51,7 @@ SQL_FILES = {
     "STAR_SCHEMA": ROOT / "sql" / "schema" / "02_star_schema.sql",
     "VIEW": ROOT / "sql" / "schema" / "03_views.sql",
     "INDEX": ROOT / "sql" / "optimization" / "indexes.sql",
-    "MATERIALIZED_VIEW": ROOT / "sql" / "optimization" / "views.sql",
+    "MATERIALIZED_VIEW": ROOT / "sql" / "optimization" / "material_view.sql",
     "DATABASE_ACCESS": ROOT / "sql" / "security" / "roles_and_grants.sql",
 }
 
@@ -139,7 +135,7 @@ def run_sql_setup() -> None:
         (
             MV_CREATE,
             SQL_FILES["MATERIALIZED_VIEW"],
-            "views.sql",
+            "material_view.sql",
         ),
         (
             DATABASE_ACCESS_CREATE,

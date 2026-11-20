@@ -141,6 +141,10 @@ def verify():
         # 2. row counts
         width = max([len(f"{s}.{t}") for s in tables for t in tables[s]] + [20]) + 2
         rows = [f"  {'Table':<{width}}{'Original':>15}{'Recovery':>15}{'Difference':>13}  Status"]
+        total_tables = sum(len(tables[s]) for s in SCHEMAS)
+        # Live progress: print each table as soon as it is counted (big tables take a while)
+        print(f"Counting rows in {plural(total_tables, 'table')} (original vs recovery)...", flush=True)
+        print(rows[0], flush=True)
         for schema in SCHEMAS:
             for t in tables[schema]:
                 name = f"{schema}.{t}"
@@ -150,6 +154,7 @@ def verify():
                     original_conn.rollback(); recovery_conn.rollback()
                     issues.append(f"{name}: could not count rows ({str(e).strip()})")
                     rows.append(f"  {name:<{width}}{'?':>15}{'?':>15}{'':>13}  ERROR")
+                    print(rows[-1], flush=True)
                     continue
                 diff = r - o
                 if diff < 0:
@@ -163,6 +168,8 @@ def verify():
                 else:
                     status = "OK"
                 rows.append(f"  {name:<{width}}{o:>15,}{r:>15,}{diff:>+13,}  {status}")
+                print(rows[-1], flush=True)
+        print(flush=True)
         section("[2] Row counts", rows)
 
         # 3. constraints and 4. indexes, matched by name
