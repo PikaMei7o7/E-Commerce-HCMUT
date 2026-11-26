@@ -1,5 +1,5 @@
 Flask>=3.0
 psycopg2-binary>=2.9
 python-dotenv>=1.0
-pandas>=2.0
+pandas>=2.0,<3  # pandas 3 infers article_id categories as int: transform_raw_data.py fails
 numpy>=1.26

@@ -50,10 +50,21 @@ function show(view) {
 }
 document.querySelectorAll('#steps [data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
 
+/* Only what the account can use is shown: locked dashboards, widgets, visuals and views are hidden. */
+const visibleDashboards = () => state.access.dashboards.filter(d => d.status !== 'locked');
+const readableViews = () => state.access.views.filter(v => v.status === 'ok' || v.status === 'partial');
+function pbixVisualAllowed(v) {
+  const view = state.access.views.find(x => x.name === (v.fields[0] || {}).entity);
+  if (!view || !(view.status === 'ok' || view.status === 'partial')) return false;
+  const ok = new Set(view.columns.filter(c => c.ok).map(c => c.name));
+  return v.fields.every(f => ok.has(f.prop));
+}
+
 function renderDashNav() {
   const nav = $('dash-nav'); nav.textContent = '';
   if (!state.access) { nav.append(h('div', { class: 'nav-empty', text: 'Connect to unlock dashboards' })); return; }
-  nav.append(...state.access.dashboards.map(x => h('button', { class: 'nav-item', 'data-dash': x.id, title: STATUS[x.status][0], onclick: () => openDash(x.id) },
+  if (!visibleDashboards().length) { nav.append(h('div', { class: 'nav-empty', text: 'No dashboards for this account' })); return; }
+  nav.append(...visibleDashboards().map(x => h('button', { class: 'nav-item', 'data-dash': x.id, title: STATUS[x.status][0], onclick: () => openDash(x.id) },
     h('span', { class: 'ic emoji', text: x.icon }), h('span', { class: 'nav-txt', text: x.title }), h('span', { class: 'sd ' + x.status }))));
   document.querySelectorAll('#dash-nav [data-dash]').forEach(b => b.classList.toggle('active', !$('view-dash').hidden && b.dataset.dash === state.dash));
 }
@@ -129,53 +140,49 @@ async function renderConnect() {
 /* 2. Quyền truy cập */
 function renderAccess() {
   const a = state.access, id = a.identity, root = $('view-access'); root.textContent = '';
-  const count = k => a.views.filter(v => v.status === k).length;
-  const unlocked = a.dashboards.filter(d => d.status !== 'locked').length;
+  const views = readableViews(), dashes = visibleDashboards();
 
   const recheck = h('button', { class: 'btn', onclick: async ev => {
     const b = ev.currentTarget; b.disabled = true;
-    try { state.access = await api('/api/recheck', {}); renderAccess(); renderDashNav(); } catch (e) { alert(e.message); b.disabled = false; }
+    try { state.access = await api('/api/recheck', {}); state.catalog = null; renderAccess(); renderDashNav(); } catch (e) { alert(e.message); b.disabled = false; }
   } }, ico('refresh'), 'Re-check');
   const head = pageHead('Permissions', id.current_user,
     `${id.superuser ? 'Superuser' : 'Regular user'} · schema ${id.schema} · ${id.server}`, recheck);
 
   const stat = (l, n, tone) => h('div', { class: 'stat t-' + tone }, h('div', { class: 'l', text: l }), h('div', { class: 'n', text: String(n) }));
   const stats = h('div', { class: 'stats' },
-    stat('Views fully readable', `${count('ok')} / ${a.views.length}`, 'ok'),
-    stat('Partial access', count('partial'), 'partial'),
-    stat('No permission', count('denied') + count('error'), 'denied'),
-    count('missing') ? stat('Missing views', count('missing'), 'missing') : null,
-    stat('Dashboards unlocked', `${unlocked} / ${a.dashboards.length}`, 'accent'));
+    stat('Dashboards', dashes.length, 'accent'),
+    stat('Views you can read', views.length, 'ok'),
+    views.some(v => v.status === 'partial') ? stat('Of which column-limited', views.filter(v => v.status === 'partial').length, 'partial') : null);
 
-  const dcards = h('div', { class: 'dgrid' }, a.dashboards.map(d => h('div', { class: 'dcard s-' + d.status },
-    h('div', { class: 'row' }, h('span', { class: 'emoji', text: d.icon }), badge(d.status)),
-    h('h3', { text: d.title }),
-    h('div', {}, h('div', { class: 'meter' }, h('i', { style: `width:${(100 * d.available) / (d.total || 1)}%` })),
-      h('div', { class: 'muted small', style: 'margin-top:6px', text: `${d.available} of ${d.total} widgets available` })),
-    d.status !== 'full' ? h('ul', {}, [...new Set(d.widgets.flatMap(w => w.reasons))].slice(0, 3).map(r => h('li', { text: r }))) : null,
-    h('div', { class: 'go' }, h('button', { class: 'btn ' + (d.status === 'locked' ? '' : 'primary'), onclick: () => openDash(d.id) },
-      d.status === 'locked' ? 'See why' : 'Open dashboard', ico('arrow'))))));
-  const dashCard = h('div', { class: 'card' }, cardHead('Dashboards', 'Dashboards this account has enough privileges for are unlocked.'), dcards);
+  const dcards = dashes.length
+    ? h('div', { class: 'dgrid' }, dashes.map(d => h('div', { class: 'dcard s-' + d.status },
+      h('div', { class: 'row' }, h('span', { class: 'emoji', text: d.icon })),
+      h('h3', { text: d.title }),
+      h('p', { class: 'muted small', text: d.desc }),
+      h('div', { class: 'go' }, h('button', { class: 'btn primary', onclick: () => openDash(d.id) }, 'Open dashboard', ico('arrow'))))))
+    : h('p', { class: 'muted', text: 'This account has no dashboards. Ask the database owner for access.' });
+  const dashCard = h('div', { class: 'card' }, cardHead('Your dashboards', 'Only the dashboards this account is allowed to use are listed.'), dcards);
 
   const rows = [];
-  const dn = Object.fromEntries(a.dashboards.map(d => [d.id, d.title]));
-  for (const v of a.views) {
+  const dn = Object.fromEntries(dashes.map(d => [d.id, d.title]));
+  for (const v of views) {
     const det = h('tr', { class: 'detail', hidden: true }, h('td', { colspan: 5 },
-      v.columns.length ? h('div', {}, v.columns.map(c => h('span', { class: 'chip ' + (c.ok ? 'ok' : 'no'), text: c.name }))) : h('span', { class: 'muted', text: 'No column information (view does not exist).' }),
+      h('div', {}, v.columns.filter(c => c.ok).map(c => h('span', { class: 'chip ok', text: c.name }))),
       v.missing_columns.length ? h('p', { class: 'small', style: 'color:var(--warn)' }, 'Columns the app needs but the view lacks: ' + v.missing_columns.join(', ')) : null,
       v.probe && !v.probe.ok ? h('div', { class: 'err' }, v.probe.error) : null,
       v.status === 'denied' && v.exists ? h('code', { class: 'grant' }, `GRANT SELECT ON ${id.schema}.${v.name} TO ${id.current_user};`) : null));
     const tr = h('tr', { class: 'row', onclick: () => { det.hidden = !det.hidden; tr.classList.toggle('open', !det.hidden); } },
       h('td', {}, h('span', { class: 'vname' }, ico('chevron', 'ic caret'), h('b', { text: v.name }))), h('td', {}, badge(v.status)),
-      h('td', { class: 'num' }, v.exists ? [h('span', { class: 'bar-mini' }, h('i', { style: `width:${(100 * v.cols_ok) / (v.cols_total || 1)}%` })), `${v.cols_ok}/${v.cols_total}`] : '–'),
+      h('td', { class: 'num', text: `${v.cols_ok}` }),
       h('td', {}, v.probe ? h('span', { class: v.probe.ok ? 'txt-ok' : 'txt-bad', text: v.probe.ok ? '✓ Queryable' : '✗ Error' }) : h('span', { class: 'muted', text: '–' })),
-      h('td', {}, v.used_by.map(i => h('span', { class: 'chip', text: dn[i] }))));
+      h('td', {}, v.used_by.filter(i => dn[i]).map(i => h('span', { class: 'chip', text: dn[i] }))));
     rows.push(tr, det);
   }
-  const viewsCard = h('div', { class: 'card' }, cardHead(`View permissions · ${id.schema}`, 'Click a row to see each column. “Queryable” means a real SELECT was test-run on the view.'),
-    h('div', { class: 'scroll flat' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['View', 'Status', 'Readable columns', 'Test query', 'Used by'].map((t, i) => h('th', { class: i === 2 ? 'num' : '', text: t })))), h('tbody', {}, rows))),
-    h('div', { class: 'note' }, ico('info'), h('span', {}, h('b', { text: 'Base tables: ' }), a.tables.map(t => `${t.name} ${t.exists ? (t.select ? '✓' : '✗') : '(missing)'}`).join(' · ') +
-      '. Views run with the privileges of the view owner, so SELECT must be granted on each view directly.')));
+  const fullTables = a.tables.filter(t => t.select).map(t => t.name);
+  const viewsCard = h('div', { class: 'card' }, cardHead(`Views you can read · ${id.schema}`, 'Click a row to see its columns. “Queryable” means a real SELECT was test-run on the view.'),
+    h('div', { class: 'scroll flat' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['View', 'Status', 'Columns', 'Test query', 'Used by'].map((t, i) => h('th', { class: i === 2 ? 'num' : '', text: t })))), h('tbody', {}, rows))),
+    fullTables.length ? h('div', { class: 'note' }, ico('info'), h('span', {}, h('b', { text: 'Base tables with full access: ' }), fullTables.join(' · ') + '.')) : null);
 
   const acctCard = h('div', { class: 'card' }, cardHead('Account'),
     h('dl', { class: 'kv wide' },
@@ -236,8 +243,13 @@ function renderPbixSection(host, page) {
   const slicerVals = {};
   const nonSlicerLoaders = [];
   const pw = page.width || 1920, ph = page.height || 1080;
+  const visuals = page.visuals.filter(pbixVisualAllowed);
+  if (!visuals.length) {
+    host.append(h('div', { class: 'card pbix-card' }, cardHead('Power BI report', 'The original hm_sales_report.pbix file.', dlBtn)));
+    return;
+  }
 
-  const canvas = h('div', { class: 'pbix-canvas' }, page.visuals.map(v => {
+  const canvas = h('div', { class: 'pbix-canvas' }, visuals.map(v => {
     const [vtName] = VTYPE_LABEL[v.visualType] || [v.visualType, '📊'];
     const left = ((v.x / pw) * 100).toFixed(2) + '%';
     const top = ((v.y / ph) * 100).toFixed(2) + '%';
@@ -281,7 +293,7 @@ function renderPbixSection(host, page) {
   }));
 
   host.append(h('div', { class: 'card pbix-card' },
-    cardHead(`Power BI report · ${page.displayName}`, `Page ${page.page_number} of hm_sales_report.pbix · ${page.visuals.length} visuals`, dlBtn),
+    cardHead(`Power BI report · ${page.displayName}`, `Page ${page.page_number} of hm_sales_report.pbix · ${visuals.length} visuals`, dlBtn),
     canvas));
 }
 
@@ -347,7 +359,8 @@ function loadAll(d, acc, grid, fromApply) {
   resetQueue(); grid.textContent = '';
   for (const w of d.widgets) {
     const wa = acc.widgets.find(x => x.id === w.id);
-    const card = h('div', { class: 'card w' + (wa.available ? '' : ' locked'), style: `--span:${w.span || 12}` });
+    if (!wa.available) continue;  // hidden, not shown as locked
+    const card = h('div', { class: 'card w', style: `--span:${w.span || 12}` });
     grid.append(card);
     renderCard(d, w, wa, card, fromApply);
   }

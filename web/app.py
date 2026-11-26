@@ -533,11 +533,18 @@ def get_catalog():
     if not s:
         return fail(401, "Session expired, please reconnect")
     pbix_pages = read_pbix_pages()
+    # Only what this account can use: locked dashboards and widgets are not sent at all.
+    access = {d["id"]: d for d in s["access"]["dashboards"]}
     dashes = []
     for idx, d in enumerate(catalog.DASHBOARDS):
+        acc = access.get(d["id"])
+        if not acc or acc["status"] == "locked":
+            continue
+        usable = {w["id"] for w in acc["widgets"] if w["available"]}
         pbix_page = pbix_pages[idx] if idx < len(pbix_pages) else None
         dashes.append({k: d[k] for k in ("id", "title", "icon", "desc", "controls")} | {
-            "widgets": [{k: v for k, v in w.items() if k not in ("sql", "uses")} for w in d["widgets"]],
+            "widgets": [{k: v for k, v in w.items() if k not in ("sql", "uses")}
+                        for w in d["widgets"] if w["id"] in usable],
             "pbix_page": pbix_page,
         })
     return jsonify(dashboards=dashes)
