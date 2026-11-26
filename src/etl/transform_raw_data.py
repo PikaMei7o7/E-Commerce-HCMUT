@@ -1,6 +1,8 @@
 import argparse
 import logging
+import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +41,45 @@ ARTICLE_INT_COLS = [
 FLAG = {"1.0": True, "1": True, "0.0": False, "0": False}
 
 
+# Progress output
+STEPS = 7  # read, profile, clean, standardize, transform, validate, write
+
+
+def format_duration(seconds: float) -> str:
+    return f"{seconds:.1f}s" if seconds < 60 else f"{int(seconds // 60)}m {int(seconds % 60):02d}s"
+
+
+@contextmanager
+def step(no: int, title: str):
+    """Log when a pipeline step starts and how long it took: "[3/7] Cleaning done in 12.4s"."""
+    log.info("[%d/%d] %s ...", no, STEPS, title)
+    start = time.perf_counter()
+    yield
+    log.info("[%d/%d] %s done in %s", no, STEPS, title, format_duration(time.perf_counter() - start))
+
+
+class Progress:
+    """Log a long job at 10%, 20%, ... 90%, with the time left estimated from the speed so far."""
+
+    def __init__(self, label: str, total: int, unit: str = "rows"):
+        self.label, self.total, self.unit = label, max(total, 1), unit
+        self.start = time.perf_counter()
+        self.next_pct = 10
+
+    def _amount(self, n: int) -> str:
+        return f"{n / 1e6:,.0f} MB" if self.unit == "bytes" else f"{n:,} {self.unit}"
+
+    def update(self, done: int) -> None:
+        """Call with the amount done so far; the caller logs the finished job itself."""
+        if done <= 0 or done >= self.total or done * 100 // self.total < self.next_pct:
+            return
+        pct = done * 100 // self.total
+        elapsed = time.perf_counter() - self.start
+        log.info("    %s %3d%%  %s / %s, about %s left", self.label, pct, self._amount(done),
+                 self._amount(self.total), format_duration(elapsed * (self.total - done) / done))
+        self.next_pct = pct // 10 * 10 + 10
+
+
 # 1. Read CSV
 def read_raw() -> dict[str, pd.DataFrame]:
     missing = [f for f in RAW_FILES if not (RAW_DIR / f).exists()]
@@ -47,17 +88,21 @@ def read_raw() -> dict[str, pd.DataFrame]:
 
     # Everything as str so codes keep their leading zeros (article_id "0108775015").
     as_str = dict(dtype=str, keep_default_na=False, na_values=[""])
-    return {
-        "articles": pd.read_csv(RAW_DIR / "articles.csv", **as_str),
-        "customers": pd.read_csv(RAW_DIR / "customers.csv", **as_str),
+    read_args = {
+        "articles": ("articles.csv", as_str),
+        "customers": ("customers.csv", as_str),
         # ~32M rows: categoricals keep the 64-char ids at a few bytes per row.
-        "transactions": pd.read_csv(
-            RAW_DIR / "transactions_train.csv",
+        "transactions": ("transactions_train.csv", dict(
             dtype={"customer_id": "category", "article_id": "category",
                    "price": "float64", "sales_channel_id": "Int8"},
             parse_dates=["t_dat"], date_format="%Y-%m-%d",
-        ),
+        )),
     }
+    raw = {}
+    for name, (file, kwargs) in read_args.items():
+        log.info("    reading %s (%s MB) ...", file, f"{(RAW_DIR / file).stat().st_size / 1e6:,.0f}")
+        raw[name] = pd.read_csv(RAW_DIR / file, **kwargs)
+    return raw
 
 
 # 2. Profiling
@@ -227,6 +272,7 @@ def transform_transactions(t: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]
     # Ghi chú A: one historical transaction = one (customer_id, t_dat, sales_channel_id).
     tx_idx = t.groupby(["customer_id", "t_dat", "sales_channel_id"], observed=True, sort=False).ngroup().to_numpy()
     n_tx = int(tx_idx.max()) + 1
+    log.info("    generating %s transaction ids ...", f"{n_tx:,}")
     uuids = _repeatable_uuid4(n_tx)
 
     first = pd.Series(np.arange(len(t))).groupby(tx_idx).first().to_numpy()
@@ -254,9 +300,13 @@ def transform_transactions(t: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]
 def transform(a: pd.DataFrame, customer: pd.DataFrame, t: pd.DataFrame, window_days: int) -> dict[str, pd.DataFrame]:
     tables = transform_articles(a)
     tables["customer"] = customer
+    log.info("    lookup, product and article tables built")
     article = tables["article"]
     article["price_base"] = article["article_id"].map(compute_price_base(t, window_days)).round(10)
+    log.info("    price_base computed for %s articles", f"{article['price_base'].notna().sum():,}")
     tables["transaction"], tables["contains"] = transform_transactions(t)
+    log.info("    transaction: %s rows, contains: %s rows",
+             f"{len(tables['transaction']):,}", f"{len(tables['contains']):,}")
     return tables
 
 
@@ -336,11 +386,10 @@ CHECKS = [
 
 def validate(tables: dict[str, pd.DataFrame], n_source_rows: int) -> list[str]:
     """Return the checks that fail; empty when the tables match the operational schema."""
-    failed: list[str] = []
+    results: list[tuple[bool, str]] = []
 
     def check(ok: bool, what: str) -> None:
-        if not ok:
-            failed.append(what)
+        results.append((bool(ok), what))
 
     for name, spec in SCHEMA.items():
         df = tables[name]
@@ -362,6 +411,8 @@ def validate(tables: dict[str, pd.DataFrame], n_source_rows: int) -> list[str]:
     total_qty = int(tables["contains"]["quantity"].sum())
     check(total_qty == n_source_rows,
           f"sum(contains.quantity) = {total_qty} equals cleaned transaction rows = {n_source_rows}")
+    failed = [what for ok, what in results if not ok]
+    log.info("    %d/%d checks passed", len(results) - len(failed), len(results))
     return failed
 
 
@@ -373,10 +424,18 @@ def clear_output(out_dir: Path) -> None:
         (out_dir / f"{name}.csv").unlink(missing_ok=True)
 
 
-def write_tables(tables: dict[str, pd.DataFrame], out_dir: Path) -> None:
+def write_tables(tables: dict[str, pd.DataFrame], out_dir: Path, chunk_rows: int = 1_000_000) -> None:
     for name in SCHEMA:  # parents before children
-        # Plain decimals (no 1.69e-05), matching DECIMAL(12,10).
-        tables[name].to_csv(out_dir / f"{name}.csv", index=False, chunksize=1_000_000, float_format="%.10f")
+        df = tables[name]
+        progress = Progress(f"{name}.csv", len(df))
+        start = time.perf_counter()
+        with (out_dir / f"{name}.csv").open("w", encoding="utf-8", newline="") as f:
+            for first in range(0, max(len(df), 1), chunk_rows):
+                # Plain decimals (no 1.69e-05), matching DECIMAL(12,10).
+                df.iloc[first:first + chunk_rows].to_csv(f, index=False, header=first == 0, float_format="%.10f")
+                progress.update(first + chunk_rows)
+        log.info("    %-24s %12s rows in %s", f"{name}.csv", f"{len(df):,}",
+                 format_duration(time.perf_counter() - start))
 
 
 def run(out_dir: Path, window_days: int, max_contains_rows: int | None = None) -> dict[str, pd.DataFrame]:
@@ -384,21 +443,30 @@ def run(out_dir: Path, window_days: int, max_contains_rows: int | None = None) -
         raise ValueError("--out-dir must not be data/raw: raw files are read-only")
     out_dir.mkdir(parents=True, exist_ok=True)
     clear_output(out_dir)
+    started = time.perf_counter()
 
-    raw = read_raw()
-    profile(raw)
-    a, c, t = clean(raw)
-    del raw
-    a, customer = standardize(a, c)
-    tables = transform(a, customer, t, window_days)
-    failed = validate(tables, len(t))
+    with step(1, "Read CSV"):
+        raw = read_raw()
+    with step(2, "Profiling"):
+        profile(raw)
+    with step(3, "Cleaning"):
+        a, c, t = clean(raw)
+        del raw
+    with step(4, "Standardization"):
+        a, customer = standardize(a, c)
+    with step(5, "Transformation"):
+        tables = transform(a, customer, t, window_days)
+    with step(6, "Validation"):
+        failed = validate(tables, len(t))
     if failed:
         raise SystemExit("validation failed, no tables written:\n  " + "\n  ".join(failed))
     if max_contains_rows is not None:
         log.info("mini mode: limiting contains table from %d to %d rows", len(tables["contains"]), max_contains_rows)
         tables["contains"] = tables["contains"].iloc[:max_contains_rows]
-    write_tables(tables, out_dir)
-    log.info("done: validation passed, %d tables written to %s", len(SCHEMA), out_dir)
+    with step(7, "Write CSV"):
+        write_tables(tables, out_dir)
+    log.info("done: validation passed, %d tables written to %s in %s",
+             len(SCHEMA), out_dir, format_duration(time.perf_counter() - started))
     return tables
 
 

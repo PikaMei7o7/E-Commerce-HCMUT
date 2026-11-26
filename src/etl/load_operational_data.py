@@ -1,12 +1,19 @@
+import logging
 import os
+import time
 from pathlib import Path
 
 import psycopg2
 from psycopg2 import sql
 from dotenv import load_dotenv
 
-from transform_raw_data import processed_csv
+from transform_raw_data import Progress, format_duration, processed_csv
 load_dotenv()
+
+log = logging.getLogger("load")
+
+# Files larger than this show a progress line every 10% while COPY sends them.
+PROGRESS_MIN_BYTES = 50_000_000
 
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT / "data" / "processed"
@@ -87,7 +94,28 @@ class _LimitedLineReader:
         return chunk
 
 
-def load_table(cur, table_name: str, max_rows: int | None = None):
+class _ProgressReader:
+    """File wrapper that reports how much of the file COPY has sent to the server."""
+
+    def __init__(self, file_obj, progress: Progress):
+        self._file = file_obj
+        self._progress = progress
+        self._sent = 0
+
+    def read(self, size: int = -1) -> str:
+        data = self._file.read(size)
+        self._sent += len(data)
+        self._progress.update(self._sent)
+        return data
+
+    def readline(self, size: int = -1) -> str:
+        line = self._file.readline(size)
+        self._sent += len(line)
+        self._progress.update(self._sent)
+        return line
+
+
+def load_table(cur, table_name: str, no: int, max_rows: int | None = None):
     file_path = PROCESSED_DIR / f"{table_name}.csv"
 
     if not file_path.exists():
@@ -106,15 +134,20 @@ def load_table(cur, table_name: str, max_rows: int | None = None):
         """
     ).format(sql.Identifier(table_name))
 
+    size = file_path.stat().st_size
+    start = time.perf_counter()
     with file_path.open("r", encoding="utf-8", newline="") as f:
         if max_rows is not None:
             # +1 line to include the CSV header row
             reader = _LimitedLineReader(f, max_rows + 1)
-            cur.copy_expert(query, reader)
-            print(f"[LOAD] {table_name} (mini: up to {max_rows:,} rows)")
+        elif size > PROGRESS_MIN_BYTES:
+            reader = _ProgressReader(f, Progress(table_name, size, unit="bytes"))
         else:
-            cur.copy_expert(query, f)
-            print(f"[LOAD] {table_name}")
+            reader = f
+        cur.copy_expert(query, reader)
+    mini = f" (mini: up to {max_rows:,} rows)" if max_rows is not None else ""
+    log.info("[%2d/%d] %-24s loaded%s in %s", no, len(LOAD_ORDER), table_name, mini,
+             format_duration(time.perf_counter() - start))
 
 
 def truncate_tables(cur):
@@ -132,30 +165,35 @@ def truncate_tables(cur):
 
 def main(max_contains_rows: int | None = None):
     # processed_csv();
-    print("Connecting to PostgreSQL...")
+    log.info("Connecting to PostgreSQL...")
 
     conn = get_connection()
+    started = time.perf_counter()
 
     try:
         with conn:
             with conn.cursor() as cur:
 
-                print("Clearing existing data...")
+                log.info("Clearing existing data...")
                 truncate_tables(cur)
 
                 if max_contains_rows is not None:
-                    print(f"Loading processed data (MINI mode: contains limited to {max_contains_rows:,} rows)...")
+                    log.info("Loading %d tables (MINI mode: contains limited to %s rows)...",
+                             len(LOAD_ORDER), f"{max_contains_rows:,}")
                 else:
-                    print("Loading processed data (FULL mode)...")
+                    log.info("Loading %d tables (FULL mode)...", len(LOAD_ORDER))
 
-                for table in LOAD_ORDER:
+                for no, table in enumerate(LOAD_ORDER, 1):
                     limit = max_contains_rows if table == "contains" else None
-                    load_table(cur, table, max_rows=limit)
+                    load_table(cur, table, no, max_rows=limit)
 
-                print("Database loading completed.")
+                log.info("Committing...")
+
+        # Reported only after the commit, so "completed" really means the data is saved.
+        log.info("Database loading completed in %s.", format_duration(time.perf_counter() - started))
 
     except Exception:
-        print("Loading failed. Transaction rolled back.")
+        log.error("Loading failed. Transaction rolled back.")
         raise
 
     finally:
@@ -168,4 +206,5 @@ def load_mini(max_contains_rows: int = 1_000_000):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
     main()
