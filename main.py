@@ -137,11 +137,6 @@ def run_sql_setup() -> None:
             SQL_FILES["MATERIALIZED_VIEW"],
             "material_view.sql",
         ),
-        (
-            DATABASE_ACCESS_CREATE,
-            SQL_FILES["DATABASE_ACCESS"],
-            "roles_and_grants.sql",
-        ),
     ]
 
     for flag, sql_path, name in steps:
@@ -149,6 +144,23 @@ def run_sql_setup() -> None:
             execute_sql_file(sql_path, name)
         else:
             log.info("[SKIP] Skipping %s (flag = %s)", name, flag)
+
+    # material_view.sql drops vw_* with CASCADE, which also drops their grants:
+    # the access step must follow it, even if DATABASE_ACCESS_CREATE was left at 0.
+    if DATABASE_ACCESS_CREATE == 1 or MV_CREATE == 1:
+        if DATABASE_ACCESS_CREATE != 1:
+            log.info("[SQL] MV_CREATE = 1 dropped the vw_* grants: re-applying roles_and_grants.sql")
+        run_database_access()
+    else:
+        log.info("[SKIP] Skipping roles_and_grants.sql (flag = %s)", DATABASE_ACCESS_CREATE)
+
+
+def run_database_access() -> None:
+    from src.security.create_login_users import create_login_users
+
+    execute_sql_file(SQL_FILES["DATABASE_ACCESS"], "roles_and_grants.sql")
+    logins = create_login_users()
+    log.info("[SQL] Login accounts created/updated: %s", ", ".join(logins) or "none (no password in .env)")
 
 
 # 3. Run ETL and star schema loader (full / mini)
