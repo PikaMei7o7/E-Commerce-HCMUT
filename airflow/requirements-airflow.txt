@@ -1,5 +1,2 @@
-# Extra packages for the Airflow image. Installed with the constraints file of the
-# pinned Airflow version (see Dockerfile), so no version pins here.
-# pandas / numpy are NOT needed: Airflow does not run the ETL.
 psycopg2-binary
 python-dotenv
