@@ -305,7 +305,7 @@ def _explorer_widgets():
                 M("Revenue", "revenue"), M("Units sold", "units", "int"),
                 M("Transactions", "transactions", "int"), M("Customers", "customers", "int"),
             ],
-            note="Uses year-specific materialized views (2018-2020) when a single year is selected, or mv_sales_detail for All.",
+            note="Reads vw_sales_detail directly (~tens of millions of rows), so it may take tens of seconds.",
             sql=q,
         ),
     ]
