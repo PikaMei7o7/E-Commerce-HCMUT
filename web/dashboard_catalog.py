@@ -257,37 +257,58 @@ DIMENSIONS = {  # key: (nhãn, biểu thức select, order by)
 }
 
 
+YEAR_MV_MAP = {
+    "2018": "mv_sales_detail_2018",
+    "2019": "mv_sales_detail_2019",
+    "2020": "mv_sales_detail_2020",
+}
+
+
 def _explorer_widgets():
     def q(S, p):
         label, expr, order = DIMENSIONS[p["dim"]]
+        source_rel = YEAR_MV_MAP.get(p["year"], "mv_sales_detail")
         where, args = ["TRUE"], {}
-        if p["year"] != "all":
-            where.append("year = %(year)s"); args["year"] = int(p["year"])
+        if p["year"] not in YEAR_MV_MAP and p["year"] != "all":
+            where.append("year = %(year)s")
+            args["year"] = int(p["year"])
         if p["channel"] != "all":
-            where.append("sales_channel_name = %(channel)s"); args["channel"] = p["channel"]
+            where.append("sales_channel_name = %(channel)s")
+            args["channel"] = p["channel"]
         if p["age_group"] != "all":
-            where.append("age_group = %(age)s"); args["age"] = p["age_group"]
+            where.append("age_group = %(age)s")
+            args["age"] = p["age_group"]
         if p["club"] != "all":
-            where.append("club_member_status = %(club)s"); args["club"] = p["club"]
+            where.append("club_member_status = %(club)s")
+            args["club"] = p["club"]
         if p["group_like"]:
-            where.append("product_group_name ILIKE %(g)s"); args["g"] = "%" + p["group_like"] + "%"
-        sql = (f"SELECT {expr} AS dim, SUM(sales_revenue) AS revenue, SUM(quantity) AS units,"
-               f" COUNT(DISTINCT transaction_id) AS transactions, COUNT(DISTINCT customer_id) AS customers"
-               f" FROM {S}.vw_sales_detail WHERE {' AND '.join(where)} GROUP BY 1 ORDER BY {order} LIMIT 60")
+            where.append("product_group_name ILIKE %(g)s")
+            args["g"] = "%" + p["group_like"] + "%"
+        sql = (
+            f"SELECT {expr} AS dim, SUM(sales_revenue) AS revenue, SUM(quantity) AS units,"
+            f" COUNT(DISTINCT transaction_id) AS transactions, COUNT(DISTINCT customer_id) AS customers"
+            f" FROM {S}.{source_rel} WHERE {' AND '.join(where)} GROUP BY 1 ORDER BY {order} LIMIT 60"
+        )
         return sql, args
-    cols = ["sales_revenue", "quantity", "transaction_id", "customer_id", "year", "month", "quarter", "day_of_week",
-            "sales_channel_name", "product_group_name", "prod_type_name", "age_group", "club_member_status",
-            "fashion_news_frequency", "index_group_no", "department_no", "colour_group_code"]
-    return [
-        dict(id="explore", title="Analyze by any dimension", kind="bar", span=12, heavy=True, apply_run=True, table=True,
-             dynamic_x=True, use_controls=["dim", "year", "channel", "age_group", "club", "group_like"],
-             uses=_s(("vw_sales_detail", cols)),
-             x="dim", series=[M("Revenue", "revenue"), M("Units sold", "units", "int"),
-                              M("Transactions", "transactions", "int"), M("Customers", "customers", "int")],
-             note="Reads vw_sales_detail directly (~tens of millions of rows), so it may take tens of seconds.",
-             sql=q),
-    ]
 
+    cols = [
+        "sales_revenue", "quantity", "transaction_id", "customer_id", "year", "month", "quarter", "day_of_week",
+        "sales_channel_name", "product_group_name", "prod_type_name", "age_group", "club_member_status",
+        "fashion_news_frequency", "index_group_no", "department_no", "colour_group_code",
+    ]
+    return [
+        dict(
+            id="explore", title="Analyze by any dimension", kind="bar", span=12, heavy=True, apply_run=True, table=True,
+            dynamic_x=True, use_controls=["dim", "year", "channel", "age_group", "club", "group_like"],
+            uses=_s(("vw_sales_detail", cols)),
+            x="dim", series=[
+                M("Revenue", "revenue"), M("Units sold", "units", "int"),
+                M("Transactions", "transactions", "int"), M("Customers", "customers", "int"),
+            ],
+            note="Uses year-specific materialized views (2018-2020) when a single year is selected, or mv_sales_detail for All.",
+            sql=q,
+        ),
+    ]
 
 def _sel(name, label, options, default):
     return dict(name=name, label=label, type="select", options=options, default=default)
