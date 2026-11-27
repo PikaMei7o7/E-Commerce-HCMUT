@@ -311,6 +311,42 @@ CREATE INDEX IF NOT EXISTS idx_mv_sales_detail_table_perf
 CREATE OR REPLACE VIEW star_schema.vw_sales_detail AS
 SELECT * FROM star_schema.mv_sales_detail;
 
+-- 10b. mv_sales_detail_2018 / 2019 / 2020 (tạo trực tiếp từ mv_sales_detail)
+DROP MATERIALIZED VIEW IF EXISTS star_schema.mv_sales_detail_2018 CASCADE;
+CREATE MATERIALIZED VIEW star_schema.mv_sales_detail_2018 AS
+SELECT *
+FROM star_schema.mv_sales_detail
+WHERE year = 2018
+WITH DATA;
+
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2018_filter
+    ON star_schema.mv_sales_detail_2018 (sales_channel_name, age_group, club_member_status, product_group_name);
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2018_month
+    ON star_schema.mv_sales_detail_2018 (month);
+
+DROP MATERIALIZED VIEW IF EXISTS star_schema.mv_sales_detail_2019 CASCADE;
+CREATE MATERIALIZED VIEW star_schema.mv_sales_detail_2019 AS
+SELECT *
+FROM star_schema.mv_sales_detail
+WHERE year = 2019
+WITH DATA;
+
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2019_filter
+    ON star_schema.mv_sales_detail_2019 (sales_channel_name, age_group, club_member_status, product_group_name);
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2019_month
+    ON star_schema.mv_sales_detail_2019 (month);
+
+DROP MATERIALIZED VIEW IF EXISTS star_schema.mv_sales_detail_2020 CASCADE;
+CREATE MATERIALIZED VIEW star_schema.mv_sales_detail_2020 AS
+SELECT *
+FROM star_schema.mv_sales_detail
+WHERE year = 2020
+WITH DATA;
+
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2020_filter
+    ON star_schema.mv_sales_detail_2020 (sales_channel_name, age_group, club_member_status, product_group_name);
+CREATE INDEX IF NOT EXISTS idx_mv_sales_2020_month
+    ON star_schema.mv_sales_detail_2020 (month);
 -- 11. mv_customer_product_group_preference
 DROP MATERIALIZED VIEW IF EXISTS star_schema.mv_customer_product_group_preference CASCADE;
 
